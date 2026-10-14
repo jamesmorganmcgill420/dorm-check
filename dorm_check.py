@@ -18,9 +18,12 @@ LOGIN_URL = "https://studentas.vdu.lt/dormitory/login"
 NO_VACANCY_TEXT = "No vacancies were found"
 
 
-def notify(message):
+def notify(message, urgent=False):
+    # urgent=True sends at ntfy's highest priority (loud, long vibration, can bypass Do Not Disturb)
+    headers = {"Priority": "urgent", "Tags": "rotating_light"} if urgent else {}
     try:
-        requests.post(f"https://ntfy.sh/{NTFY_TOPIC}", data=message.encode("utf-8"), timeout=15)
+        requests.post(f"https://ntfy.sh/{NTFY_TOPIC}", data=message.encode("utf-8"),
+                      headers=headers, timeout=15)
     except Exception as e:
         print("Could not send notification:", e)
 
@@ -122,9 +125,9 @@ def main():
         if manual or (now.hour == 9 and now.minute < 10):
             notify("Dorm check failed: " + str(error)[:150])
     elif found:
-        notify("POSSIBLE ROOM AVAILABLE in: " + ", ".join(found) + ". Go check studentas.vdu.lt/dormitory now!")
+        notify("POSSIBLE ROOM AVAILABLE in: " + ", ".join(found) + ". Go check studentas.vdu.lt/dormitory now!", urgent=True)
     elif manual:
-        notify("Test run OK: logged in, no vacancies right now. Cloud check works.")
+        notify("Test run OK: logged in, no vacancies right now. Cloud check works.", urgent=True)
 
 
 if __name__ == "__main__":
