@@ -29,6 +29,15 @@ def notify(message, urgent=False):
         print("Could not send notification:", e)
 
 
+def settle(page):
+    """Wait for the page to calm down, but never fail just because it keeps loading."""
+    try:
+        page.wait_for_load_state("networkidle", timeout=15000)
+    except Exception:
+        pass
+    page.wait_for_timeout(1000)
+
+
 def real_options(select):
     opts = select.locator("option").evaluate_all(
         "els => els.map(e => ({v: e.value, t: e.textContent.trim()}))"
@@ -42,14 +51,14 @@ def switch_to_english(page):
         el = page.locator(sel)
         if el.count():
             el.first.click()
-            page.wait_for_load_state("networkidle")
+            settle(page)
             print("  switched to English")
             return
     print("  WARNING: could not find the English flag")
 
 
 def login(page):
-    page.goto(LOGIN_URL, wait_until="networkidle")
+    page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=90000)
     page.locator("input[type=password]").first.wait_for(state="visible")
     page.wait_for_timeout(2000)
     switch_to_english(page)
@@ -58,12 +67,12 @@ def login(page):
     page.locator("input[type=password]").first.fill(PASSWORD)
     page.locator("input[type=text], input[type=email], input:not([type])").first.fill(USERNAME)
     page.locator("input[type=password]").first.press("Enter")
-    page.wait_for_load_state("networkidle")
+    settle(page)
     print("  after login, page is:", page.url)
 
     if page.locator("select").count() < 3:
         page.get_by_text(re.compile(r"Studentų kambarius|Student", re.I)).first.click()
-        page.wait_for_load_state("networkidle")
+        settle(page)
         page.wait_for_timeout(1500)
         print("  opened student rooms:", page.url)
     print("  dropdowns found:", page.locator("select").count())
@@ -88,7 +97,7 @@ def check_all_regions(page):
                 page.wait_for_timeout(800)
 
         page.get_by_role("button", name=re.compile(r"Search|Ieškoti", re.I)).click()
-        page.wait_for_load_state("networkidle")
+        settle(page)
         page.wait_for_timeout(2000)
 
         text = page.inner_text("body")
@@ -108,7 +117,7 @@ def run_once():
         browser = p.chromium.launch(headless=True)
         context = browser.new_context(locale="en-US")
         page = context.new_page()
-        page.set_default_timeout(60000)
+        page.set_default_timeout(90000)
         try:
             login(page)
             found = check_all_regions(page)
