@@ -5,6 +5,7 @@ Login details and the ntfy topic come from GitHub Secrets, not from this file.
 import datetime
 import os
 import re
+import sys
 import traceback
 
 import requests
@@ -100,10 +101,9 @@ def check_all_regions(page):
     return found
 
 
-def main():
-    manual = os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
+def run_once():
+    """One full attempt. Returns (regions_with_vacancies, error_or_None)."""
     found, error = [], None
-
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         context = browser.new_context(locale="en-US")
@@ -118,12 +118,25 @@ def main():
         finally:
             context.close()
             browser.close()
+    return found, error
+
+
+def main():
+    manual = os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
+
+    # Try up to 2 times, in case the university site was just slow.
+    for attempt in (1, 2):
+        found, error = run_once()
+        if not error:
+            break
+        print(f"Attempt {attempt} failed: {error}")
 
     now = datetime.datetime.now(datetime.timezone.utc)
     if error:
         # Error alerts: always on manual test runs, otherwise only once a day.
         if manual or (now.hour == 9 and now.minute < 10):
             notify("Dorm check failed: " + str(error)[:150])
+        sys.exit(1)  # makes the run show a red X on GitHub (and GitHub may email you)
     elif found:
         notify("POSSIBLE ROOM AVAILABLE in: " + ", ".join(found) + ". Go check studentas.vdu.lt/dormitory now!", urgent=True)
     elif manual:
