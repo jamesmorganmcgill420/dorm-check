@@ -127,6 +127,5 @@ def main():
         notify("Test run OK: logged in, no vacancies right now. Cloud check works.")
 
 
-if __name__ =
-= "__main__":
+if __name__ == "__main__":
     main()
