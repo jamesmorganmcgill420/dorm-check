@@ -18,6 +18,9 @@ NTFY_TOPIC = os.environ["NTFY_TOPIC"]
 LOGIN_URL = "https://studentas.vdu.lt/dormitory/login"
 NO_VACANCY_TEXT = "No vacancies were found"
 
+# Only regions whose name contains one of these words are checked ("Kaunas" also covers "Kaunas raj.").
+WANTED_REGIONS = ["Kaunas"]
+
 
 def notify(message, urgent=False):
     # urgent=True sends at ntfy's highest priority (loud, long vibration, can bypass Do Not Disturb)
@@ -81,9 +84,11 @@ def login(page):
 def check_all_regions(page):
     found = []
     regions = real_options(page.locator("select").nth(0))
-    print("  regions found:", [r["t"] for r in regions])
+    print("  regions on site:", [r["t"] for r in regions])
+    regions = [r for r in regions if any(w.lower() in r["t"].lower() for w in WANTED_REGIONS)]
+    print("  regions checked:", [r["t"] for r in regions])
     if not regions:
-        raise RuntimeError("no regions found on the page")
+        raise RuntimeError("no matching regions found on the page")
 
     for region in regions:
         page.locator("select").nth(0).select_option(value=region["v"])
