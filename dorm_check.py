@@ -25,7 +25,7 @@ WANTED_REGIONS = ["Kaunas"]
 # Each scheduled run does one check. If it fails (slow site), it retries up to 3 times, 30 s apart.
 CHECKS_PER_RUN = 1
 GAP_SECONDS = 0
-CHECK_ATTEMPTS = 3
+CHECK_ATTEMPTS = 5
 RETRY_WAIT = 30
 
 
@@ -68,7 +68,7 @@ def switch_to_english(page):
 
 
 def login(page):
-    page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=90000)
+    page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=45000)
     page.locator("input[type=password]").first.wait_for(state="visible")
     page.wait_for_timeout(2000)
     switch_to_english(page)
