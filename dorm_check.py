@@ -6,6 +6,7 @@ import datetime
 import os
 import re
 import sys
+import time
 import traceback
 
 import requests
@@ -20,6 +21,12 @@ NO_VACANCY_TEXT = "No vacancies were found"
 
 # Only regions whose name contains one of these words are checked ("Kaunas" also covers "Kaunas raj.").
 WANTED_REGIONS = ["Kaunas"]
+
+# Each scheduled run does one check. If it fails (slow site), it retries up to 3 times, 30 s apart.
+CHECKS_PER_RUN = 1
+GAP_SECONDS = 0
+CHECK_ATTEMPTS = 3
+RETRY_WAIT = 30
 
 
 def notify(message, urgent=False):
@@ -115,45 +122,63 @@ def check_all_regions(page):
     return found
 
 
-def run_once():
-    """One full attempt. Returns (regions_with_vacancies, error_or_None)."""
-    found, error = [], None
+def run_session(num_checks):
+    """Logs in, then checks several times, a few minutes apart.
+    Returns (regions_found, successful_checks, last_error)."""
+    notified = set()
+    successes, last_error = 0, None
+
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
-        context = browser.new_context(locale="en-US")
-        page = context.new_page()
-        page.set_default_timeout(90000)
+        context = page = None
         try:
-            login(page)
-            found = check_all_regions(page)
-        except Exception as e:
-            traceback.print_exc()
-            error = e
+            for i in range(num_checks):
+                if i > 0:
+                    time.sleep(GAP_SECONDS)
+                for attempt in range(1, CHECK_ATTEMPTS + 1):
+                    try:
+                        if context is None:  # (re)login when needed
+                            context = browser.new_context(locale="en-US")
+                            page = context.new_page()
+                            page.set_default_timeout(90000)
+                            login(page)
+                        found = check_all_regions(page)
+                        successes += 1
+                        for region in found:
+                            if region not in notified:  # one alert per region per run
+                                notified.add(region)
+                                notify(f"ROOM POSSIBLY AVAILABLE in {region}! Go check studentas.vdu.lt/dormitory now!", urgent=True)
+                        break
+                    except Exception as e:
+                        traceback.print_exc()
+                        last_error = e
+                        print(f"Attempt {attempt} of {CHECK_ATTEMPTS} failed: {e}")
+                        try:
+                            context.close()
+                        except Exception:
+                            pass
+                        context = page = None  # login again on the next attempt
+                        if attempt < CHECK_ATTEMPTS:
+                            time.sleep(RETRY_WAIT)
         finally:
-            context.close()
             browser.close()
-    return found, error
+    return notified, successes, last_error
 
 
 def main():
     manual = os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
+    num_checks = 1 if manual else CHECKS_PER_RUN  # (manual runs: same)
 
-    # Try up to 2 times, in case the university site was just slow.
-    for attempt in (1, 2):
-        found, error = run_once()
-        if not error:
-            break
-        print(f"Attempt {attempt} failed: {error}")
+    notified, successes, error = run_session(num_checks)
+    print(f"Done: {successes} of {num_checks} checks succeeded.")
 
     now = datetime.datetime.now(datetime.timezone.utc)
-    if error:
-        # Error alerts: always on manual test runs, otherwise only once a day.
-        if manual or (now.hour == 9 and now.minute < 10):
+    if successes == 0:
+        # Every check failed. Alert always on manual runs, otherwise about once a day.
+        if manual or (now.hour == 9 and now.minute < 20):
             notify("Dorm check failed: " + str(error)[:150])
-        sys.exit(1)  # makes the run show a red X on GitHub (and GitHub may email you)
-    elif found:
-        notify("POSSIBLE ROOM AVAILABLE in: " + ", ".join(found) + ". Go check studentas.vdu.lt/dormitory now!", urgent=True)
-    elif manual:
+        sys.exit(1)  # red X on GitHub
+    elif manual and not notified:
         notify("Test run OK: logged in, no vacancies right now. Cloud check works.", urgent=True)
 
 
