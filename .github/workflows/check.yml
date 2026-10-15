@@ -2,7 +2,7 @@ name: Dorm check
 
 on:
   schedule:
-    - cron: "*/10 * * * *"
+    - cron: "*/20 * * * *" 
   workflow_dispatch:
 
 jobs:
@@ -14,11 +14,18 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install playwright requests
+      - run: pip install playwright requests playwright-stealth
       - run: playwright install --with-deps chromium
-      - run: python dorm_check.py
+      
+      # Replaced standard run with a retry logic wrapper
+      - name: Run Dorm Check with Retries
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 3
+          max_attempts: 3
+          retry_on: error
+          command: python dorm_check.py
         env:
           VDU_USERNAME: ${{ secrets.VDU_USERNAME }}
           VDU_PASSWORD: ${{ secrets.VDU_PASSWORD }}
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
-          
