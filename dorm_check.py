@@ -20,7 +20,7 @@ LOGIN_URL = "https://studentas.vdu.lt/dormitory/login"
 NO_VACANCY_TEXT = "No vacancies were found"
 
 # Only regions whose name contains one of these words are checked ("Kaunas" also covers "Kaunas raj.").
-WANTED_REGIONS = ["Kaunas"]
+WANTED_REGIONS = ["Kaun"]
 
 # Each scheduled run does one check. If it fails (slow site), it retries up to 3 times, 30 s apart.
 CHECKS_PER_RUN = 1
