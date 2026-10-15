@@ -24,5 +24,4 @@ jobs:
         env:
           VDU_USERNAME: ${{ secrets.VDU_USERNAME }}
           VDU_PASSWORD: ${{ secrets.VDU_PASSWORD }}
-          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC 
-          }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
